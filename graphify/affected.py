@@ -42,6 +42,10 @@ class AffectedHit:
     # existing constructors/tests working; None falls back to the node's def line.
     via_file: "str | None" = None
     via_location: "str | None" = None
+    # The node this hit was reached from (the edge's target) and the edge's confidence;
+    # carried for the structured output only, never rendered in text.
+    via_target: "str | None" = None
+    via_confidence: "str | None" = None
 
 
 def _node_label(graph: nx.Graph, node_id: str) -> str:
@@ -136,12 +140,22 @@ def _prefer_file_node(
 
 
 def resolve_seed(graph: nx.Graph, query: str, root: Path | None = None) -> str | None:
+    return resolve_seed_with_candidates(graph, query, root)[0]
+
+
+def resolve_seed_with_candidates(
+    graph: nx.Graph, query: str, root: Path | None = None
+) -> "tuple[str | None, list[str]]":
+    """(seed, candidates): ``seed`` as `resolve_seed` always returned it; when it is None,
+    ``candidates`` holds the first match tier that held several nodes (an ambiguous
+    selection) and is empty for a genuine no-match."""
+    ambiguous: list[str] = []
     # A trailing path separator must not change a source-file match — serve's
     # _find_node tokenizes the path (which drops it), so strip it here for parity
     # (otherwise `affected "src/x.ts/"` returned None while `explain` resolved it).
     query = query.rstrip("/\\") or query
     if query in graph:
-        return query
+        return query, []
     query_lower = _normalize_label(query)
     exact_label_matches = [
         str(node_id)
@@ -149,7 +163,8 @@ def resolve_seed(graph: nx.Graph, query: str, root: Path | None = None) -> str |
         if _normalize_label(str(data.get("label", ""))) == query_lower
     ]
     if len(exact_label_matches) == 1:
-        return exact_label_matches[0]
+        return exact_label_matches[0], []
+    ambiguous = ambiguous or (exact_label_matches if len(exact_label_matches) > 1 else [])
     # Callable labels are decorated ("name()"), so a bare "name" query falls
     # through exact matching and then ties with any "name*" sibling in the
     # contains pass. Match on the undecorated name before giving up.
@@ -160,7 +175,8 @@ def resolve_seed(graph: nx.Graph, query: str, root: Path | None = None) -> str |
         if _bare_name(str(data.get("label", ""))) == query_bare
     ]
     if len(bare_name_matches) == 1:
-        return bare_name_matches[0]
+        return bare_name_matches[0], []
+    ambiguous = ambiguous or (bare_name_matches if len(bare_name_matches) > 1 else [])
     # Compare paths in repo-relative form. Only this branch is path-shaped; the
     # label branches above keep the query verbatim.
     query_path = _normalize_label(_as_repo_relative(query, root))
@@ -170,21 +186,23 @@ def resolve_seed(graph: nx.Graph, query: str, root: Path | None = None) -> str |
         if _normalize_label(str(data.get("source_file", ""))) in (query_lower, query_path)
     ]
     if len(exact_source_matches) == 1:
-        return exact_source_matches[0]
+        return exact_source_matches[0], []
+    ambiguous = ambiguous or (exact_source_matches if len(exact_source_matches) > 1 else [])
     if exact_source_matches:
         preferred_file_node = _prefer_file_node(
             graph, exact_source_matches, _as_repo_relative(query, root)
         )
         if preferred_file_node is not None:
-            return preferred_file_node
+            return preferred_file_node, []
     contains_matches = [
         str(node_id)
         for node_id, data in graph.nodes(data=True)
         if query_lower in _normalize_label(str(data.get("label", "")))
     ]
     if len(contains_matches) == 1:
-        return contains_matches[0]
-    return None
+        return contains_matches[0], []
+    ambiguous = ambiguous or (contains_matches if len(contains_matches) > 1 else [])
+    return None, ambiguous
 
 
 def affected_nodes(
@@ -248,6 +266,8 @@ def affected_nodes(
                 source, current_depth + 1, relation,
                 via_file=str(data.get("source_file") or "") or None,
                 via_location=str(data.get("source_location") or "") or None,
+                via_target=str(current),
+                via_confidence=str(data.get("confidence") or "") or None,
             )
             hits.append(hit)
             queue.append((source, current_depth + 1))

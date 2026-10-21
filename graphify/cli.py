@@ -927,7 +927,34 @@ def _reenter_main() -> None:
     main()
 
 
+def _explain_connections(G, nid):
+    """Connections of `nid` as (direction, neighbour, edge data), highest-degree neighbour first.
+
+    Shared by the text and the structured (``--format json``) renderers of ``explain``."""
+    from graphify.build import edge_data
+    connections: list[tuple[str, str, dict]] = []  # (direction, neighbor_id, edge_data)
+    # Classify by the edge's TRUE direction, not the loaded arc order:
+    # a link persisted in flipped endpoint order carries its truth in the
+    # per-edge _src marker (#2309). Markerless edges fall back to the arc
+    # tail (today's behavior).
+    for nb in G.successors(nid):
+        _ed = edge_data(G, nid, nb)
+        connections.append(
+            ("out" if _ed.get("_src", nid) == nid else "in", nb, _ed)
+        )
+    for nb in G.predecessors(nid):
+        _ed = edge_data(G, nb, nid)
+        connections.append(
+            ("in" if _ed.get("_src", nb) == nb else "out", nb, _ed)
+        )
+    if connections:
+        connections.sort(key=lambda c: G.degree(c[1]), reverse=True)
+    return connections
+
+
 def dispatch_command(cmd: str) -> None:
+    from graphify import structured as _structured
+    structured_out = _structured.format_json and cmd in _structured.READ_VERBS
     if cmd == "provider":
         from graphify.llm import _custom_providers_path, BACKENDS
         import json as _json
@@ -1075,7 +1102,7 @@ def dispatch_command(cmd: str) -> None:
         from graphify import querylog
 
         question = sys.argv[2]
-        use_dfs = "--dfs" in sys.argv
+        use_dfs = "--dfs" in sys.argv[3:]
         budget = 2000
         graph_path = _default_graph_path()
         context_filters: list[str] = []
@@ -1165,6 +1192,7 @@ def dispatch_command(cmd: str) -> None:
         import time as _time
         _t0 = _time.perf_counter()
         _mode = "dfs" if use_dfs else "bfs"
+        _capture: dict | None = {} if structured_out else None
         _result = _query_graph_text(
             G,
             question,
@@ -1173,6 +1201,7 @@ def dispatch_command(cmd: str) -> None:
             token_budget=budget,
             context_filters=context_filters,
             graph_path=str(gp),
+            capture=_capture,
         )
         querylog.log_query(
             kind="query",
@@ -1184,6 +1213,9 @@ def dispatch_command(cmd: str) -> None:
             token_budget=budget,
             duration_ms=(_time.perf_counter() - _t0) * 1000,
         )
+        if structured_out:
+            _structured.emit(_structured.query_document(gp, _capture, budget))
+            return
         _touch_query_stamp(gp)
         print(_result)
     elif cmd == "affected":
@@ -1245,6 +1277,20 @@ def dispatch_command(cmd: str) -> None:
         # --graph falls back to its own directory.
         from graphify.paths import GRAPHIFY_OUT_NAME
         graph_root = gp.parent.parent if gp.parent.name == GRAPHIFY_OUT_NAME else gp.parent
+        if structured_out:
+            from graphify.affected import affected_nodes, resolve_seed_with_candidates
+            _rels = relations or DEFAULT_AFFECTED_RELATIONS
+            _seed, _cands = resolve_seed_with_candidates(graph, query, graph_root)
+            if _seed is None:
+                _structured.emit(_structured.empty(
+                    "affected", gp, "ambiguous" if _cands else "no_match",
+                    [_structured.candidate_record(graph, c) for c in _cands]))
+            else:
+                _structured.emit(_structured.affected_document(
+                    graph, gp, _seed,
+                    affected_nodes(graph, _seed, relations=_rels, depth=depth),
+                    depth=depth, relations=_rels))
+            return
         print(
             format_affected(
                 graph,
@@ -1303,6 +1349,9 @@ def dispatch_command(cmd: str) -> None:
             print(f"error: could not load graph: {exc}", file=sys.stderr)
             sys.exit(1)
         gods = _god_nodes(G, top_n=top_n)
+        if structured_out:
+            _structured.emit(_structured.god_nodes_document(G, gp, gods))
+            return
         if as_json:
             print(json.dumps(gods, indent=2))
         else:
@@ -1459,9 +1508,13 @@ def dispatch_command(cmd: str) -> None:
         src_scored = _score_nodes(G, [t.lower() for t in source_label.split()])
         tgt_scored = _score_nodes(G, [t.lower() for t in target_label.split()])
         if not src_scored:
+            if structured_out:
+                _structured.emit(_structured.empty("path", gp, "no_match", reason="source"))
             print(f"No node matching '{source_label}' found.", file=sys.stderr)
             sys.exit(1)
         if not tgt_scored:
+            if structured_out:
+                _structured.emit(_structured.empty("path", gp, "no_match", reason="target"))
             print(f"No node matching '{target_label}' found.", file=sys.stderr)
             sys.exit(1)
         src_nid = _pick_scored_endpoint(G, src_scored, source_label)
@@ -1470,12 +1523,19 @@ def dispatch_command(cmd: str) -> None:
         # shortest path is trivially zero hops, which is almost never what the
         # caller wanted (see bug #828).
         if src_nid == tgt_nid:
+            if structured_out:
+                _structured.emit(_structured.empty(
+                    "path", gp, "ambiguous",
+                    [_structured.candidate_record(G, src_nid, "source"),
+                     _structured.candidate_record(G, tgt_nid, "target")],
+                    reason="same_node"))
             print(
                 f"'{source_label}' and '{target_label}' both resolved to the same "
                 f"node '{src_nid}'. Use a more specific label or the exact node ID.",
                 file=sys.stderr,
             )
             sys.exit(1)
+        _rivals: list[tuple[str, str]] = []
         for _name, _scored, _nid in (
             ("source", src_scored, src_nid),
             ("target", tgt_scored, tgt_nid),
@@ -1486,6 +1546,7 @@ def dispatch_command(cmd: str) -> None:
             if len(_scored) >= 2 and _nid == _scored[0][1]:
                 _top, _runner = _scored[0][0], _scored[1][0]
                 if _top > 0 and (_top - _runner) / _top < 0.10:
+                    _rivals.append((f"{_name}_rival", _scored[1][1]))
                     print(
                         f"warning: {_name} match was ambiguous "
                         f"(top score {_top:g}, runner-up {_runner:g})",
@@ -1513,6 +1574,13 @@ def dispatch_command(cmd: str) -> None:
                 ))
                 path_nodes = _nx.shortest_path(_dg, src_nid, tgt_nid)
         except (_nx.NetworkXNoPath, _nx.NodeNotFound):
+            if structured_out:
+                _structured.emit(_structured.empty(
+                    "path", gp, "no_match",
+                    [_structured.candidate_record(G, src_nid, "source"),
+                     _structured.candidate_record(G, tgt_nid, "target")],
+                    reason="no_path"))
+                sys.exit(0)
             if undirected:
                 print(f"No path found between '{source_label}' and '{target_label}'.")
             else:
@@ -1524,6 +1592,7 @@ def dispatch_command(cmd: str) -> None:
             sys.exit(0)
         hops = len(path_nodes) - 1
         segments = []
+        _hop_records: list[tuple] = []
         from graphify.build import edge_datas
         for i in range(len(path_nodes) - 1):
             u, v = path_nodes[i], path_nodes[i + 1]
@@ -1544,6 +1613,7 @@ def dispatch_command(cmd: str) -> None:
                         (fwd if d.get("_src", a) == u else bwd).append(d)
             datas = fwd or bwd
             forward = bool(fwd)
+            _hop_records.append((u, v, forward, datas))
             rels = sorted({d.get("relation") for d in datas if d.get("relation")})
             rel = "/".join(rels) if rels else "related"
             confs = sorted({d.get("confidence") for d in datas if d.get("confidence")})
@@ -1554,6 +1624,10 @@ def dispatch_command(cmd: str) -> None:
                 segments.append(f"--{rel}{conf_str}--> {G.nodes[v].get('label', v)}")
             else:
                 segments.append(f"<--{rel}{conf_str}-- {G.nodes[v].get('label', v)}")
+        if structured_out:
+            _structured.emit(_structured.path_document(
+                G, gp, path_nodes, _hop_records, src_nid, tgt_nid, _rivals))
+            return
         print(f"Shortest path ({hops} hops):\n  " + " ".join(segments))
         from graphify import querylog
         querylog.log_query(
@@ -1593,9 +1667,15 @@ def dispatch_command(cmd: str) -> None:
             G = json_graph.node_link_graph(_raw)
         matches = _find_node(G, label)
         if not matches:
+            if structured_out:
+                _structured.emit(_structured.empty("explain", gp, "no_match"))
+                sys.exit(0)
             print(f"No node matching '{label}' found.")
             sys.exit(0)
         rivals = find_node_ambiguity(G, label)
+        if rivals and structured_out:
+            _structured.emit(_structured.explain_ambiguous_document(G, gp, rivals))
+            sys.exit(1)
         if rivals:
             print(f"Ambiguous: '{label}' matches {len(rivals)} nodes in different files.")
             for rival in rivals:
@@ -1605,6 +1685,10 @@ def dispatch_command(cmd: str) -> None:
             sys.exit(1)
         nid = matches[0]
         d = G.nodes[nid]
+        if structured_out:
+            _structured.emit(_structured.explain_document(
+                G, gp, nid, _explain_connections(G, nid), shown_limit=20))
+            return
         print(f"Node: {d.get('label', nid)}")
         print(f"  ID:        {nid}")
         print(
@@ -1637,25 +1721,9 @@ def dispatch_command(cmd: str) -> None:
         except Exception:
             pass
         print(f"  Degree:    {G.degree(nid)}")
-        from graphify.build import edge_data
-        connections: list[tuple[str, str, dict]] = []  # (direction, neighbor_id, edge_data)
-        # Classify by the edge's TRUE direction, not the loaded arc order:
-        # a link persisted in flipped endpoint order carries its truth in the
-        # per-edge _src marker (#2309). Markerless edges fall back to the arc
-        # tail (today's behavior).
-        for nb in G.successors(nid):
-            _ed = edge_data(G, nid, nb)
-            connections.append(
-                ("out" if _ed.get("_src", nid) == nid else "in", nb, _ed)
-            )
-        for nb in G.predecessors(nid):
-            _ed = edge_data(G, nb, nid)
-            connections.append(
-                ("in" if _ed.get("_src", nb) == nb else "out", nb, _ed)
-            )
+        connections = _explain_connections(G, nid)
         if connections:
             print(f"\nConnections ({len(connections)}):")
-            connections.sort(key=lambda c: G.degree(c[1]), reverse=True)
             for direction, nb, edata in connections[:20]:
                 rel = edata.get("relation", "")
                 conf = edata.get("confidence", "")

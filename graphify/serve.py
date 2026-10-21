@@ -979,14 +979,20 @@ def _dfs(G: nx.Graph, start_nodes: list[str], depth: int) -> tuple[set[str], lis
     return visited, edges_seen
 
 
-def _subgraph_to_text(G: nx.Graph, nodes: set[str], edges: list[tuple], token_budget: int = 2000, *, seeds: list[str] | None = None) -> str:
+def _subgraph_to_text(G: nx.Graph, nodes: set[str], edges: list[tuple], token_budget: int = 2000, *, seeds: list[str] | None = None, capture: dict | None = None) -> str:
     """Render subgraph as text, cutting at token_budget (approx 3 chars/token).
 
     seeds: exact-match nodes rendered first before the degree-sorted expansion,
     so the queried symbol always appears at the top of the output.
+
+    capture: optional dict the structured (``--format json``) output fills with the
+    values this renderer computed (ordered node ids, the edge tuples it rendered,
+    the truncation verdict) so text and JSON share one code path. Never alters the
+    returned text.
     """
     char_budget = token_budget * 3
     lines = []
+    edge_recs: list[tuple] = []
     # Work-memory overlay (derived sidecar) stashed on the graph at load time.
     # Empty when no sidecar exists, so un-annotated output stays byte-identical.
     overlay = getattr(G, "graph", {}).get("_learning_overlay", {}) or {}
@@ -1077,7 +1083,11 @@ def _subgraph_to_text(G: nx.Graph, nodes: set[str], edges: list[tuple], token_bu
                 f"{sanitize_label(G.nodes[tgt].get('label', tgt))}{at_suffix}"
             )
             lines.append(line)
+            edge_recs.append((src, tgt, d))
     output = "\n".join(lines)
+    if capture is not None:
+        capture.update(graph=G, nodes=list(ordered), edges=edge_recs, truncated=False,
+                       shown=len(ordered), total=len(ordered))
     if len(output) > char_budget:
         cut_at = output[:char_budget].rfind("\n")
         cut_at = cut_at if cut_at > 0 else char_budget
@@ -1111,6 +1121,8 @@ def _subgraph_to_text(G: nx.Graph, nodes: set[str], edges: list[tuple], token_bu
             # over-budget notice, never a truncation.
             total_edges = sum(1 for l in lines if l.startswith("EDGE "))
             est_tokens = len(output) // 3
+            if capture is not None:
+                capture.update(over_budget=True, shown=total_nodes, total=total_nodes)
             return (
                 f"[i] Complete answer over budget: all {total_nodes} nodes and "
                 f"{total_edges} edges shown (~{est_tokens} tokens vs the "
@@ -1124,6 +1136,17 @@ def _subgraph_to_text(G: nx.Graph, nodes: set[str], edges: list[tuple], token_bu
         # for a complete one — silence used to read as absence (#BUG2). The
         # notice + end marker sit OUTSIDE char_budget by design (two bounded
         # wrapper lines, like the existing end marker).
+        if capture is not None:
+            # Lines wholly inside the kept prefix are shown; node lines precede edge lines.
+            kept_edges, offset = [], 0
+            for idx, ln in enumerate(lines):
+                if offset + len(ln) > cut_at:
+                    break
+                if idx >= total_nodes:
+                    kept_edges.append(edge_recs[idx - total_nodes])
+                offset += len(ln) + 1
+            capture.update(nodes=list(ordered)[:shown_nodes], edges=kept_edges, truncated=True,
+                           shown=shown_nodes, total=total_nodes)
         output = (
             f"[!] TRUNCATED: showing {shown_nodes} of {total_nodes} nodes "
             f"(~{token_budget}-token budget). The answer may be among the "
@@ -1193,6 +1216,7 @@ def _query_graph_text(
     token_budget: int = 2000,
     context_filters: list[str] | None = None,
     graph_path: str | None = None,
+    capture: dict | None = None,
 ) -> str:
     terms = _query_terms(question)
     # One graph scoring pass produces both the combined ranking (used to drive
@@ -1216,10 +1240,14 @@ def _query_graph_text(
             t: nid for t, nid in best_seed_by_term.items() if t not in intent
         }
     start_nodes = _pick_seeds(qs.ranked, G=G, best_seed_by_term=best_seed_by_term)
+    if capture is not None:
+        capture.update(seeds=list(start_nodes), base_graph=G, mode=mode, depth=depth)
     if not start_nodes:
         return "No matching nodes found."
     resolved_filters, filter_source = _resolve_context_filters(question, context_filters)
     traversal_graph = _filter_graph_by_context(G, resolved_filters)
+    if capture is not None:
+        capture["context"] = list(resolved_filters or [])
     nodes, edges = _dfs(traversal_graph, start_nodes, depth) if mode == "dfs" else _bfs(traversal_graph, start_nodes, depth)
     header_parts = [
         f"Traversal: {mode.upper()} depth={depth}",
@@ -1243,7 +1271,7 @@ def _query_graph_text(
     # Pass the seeds so the queried symbol renders first and survives truncation
     # (#BUG2): a branch merge had silently dropped this argument, leaving the
     # seed-first ordering as dead code.
-    return header + _subgraph_to_text(traversal_graph, nodes, edges, token_budget, seeds=start_nodes)
+    return header + _subgraph_to_text(traversal_graph, nodes, edges, token_budget, seeds=start_nodes, capture=capture)
 
 
 def _find_node_tiers(

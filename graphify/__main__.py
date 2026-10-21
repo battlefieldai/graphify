@@ -486,6 +486,18 @@ def _run_cli() -> None:
                 _stream.reconfigure(encoding="utf-8", errors="replace")
             except Exception:
                 pass
+    # Structured-output patch: --version-json, global --graph/--format flags and the `--`
+    # literal-positional form are rewritten to the legacy argv shape here; any other
+    # invocation passes through untouched (see graphify/structured.py).
+    from graphify import structured as _structured
+    if len(sys.argv) == 2 and sys.argv[1] == "--version-json":
+        print(_structured.version_json())
+        return
+    try:
+        sys.argv = _structured.hoist_global_flags(sys.argv)
+    except _structured.UsageError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(2)
     # Check all known skill install locations for a stale version stamp.
     # Skip during install/uninstall (hook writes trigger a fresh check anyway).
     # Skip during hook-check — it runs on every editor tool use and must be silent.
@@ -702,7 +714,7 @@ def _run_cli() -> None:
     # Exempt: free-text commands (user string may contain these tokens), and
     # "install"/"uninstall" which have their own per-subcommand help handlers.
     _FREE_TEXT_CMDS = {"query", "explain", "path", "save-result", "install", "uninstall"}
-    if cmd not in _FREE_TEXT_CMDS and any(a in {"-h", "--help", "-?"} for a in sys.argv[2:]):
+    if cmd not in _FREE_TEXT_CMDS and any(a in {"-h", "--help", "-?"} for a in sys.argv[2 + _structured.literal_count:]):
         print(f"Run 'graphify --help' for full usage.")
         return
 
