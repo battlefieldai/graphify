@@ -214,3 +214,28 @@ def test_separator_form_without_global_flags_is_text_identical(sandbox):
     assert (proc.stdout, proc.returncode) == (legacy["stdout"], legacy["returncode"])
     proc = run(sandbox, "explain", "--", "--graph=/other")
     assert "ID:        mini_flag" in proc.stdout
+
+
+def test_structured_affected_location_fallback_matches_text():
+    """An edge without a location (or without a file) falls back exactly as the text line does."""
+    import networkx as nx
+    from graphify.affected import affected_nodes, format_affected
+    from graphify.structured import affected_document
+
+    g = nx.DiGraph()
+    g.add_node("seed", label="Seed", source_file="s.py", source_location="L1")
+    g.add_node("a", label="A", source_file="a.py", source_location="L10")
+    g.add_node("b", label="B", source_file="b.py", source_location="L20")
+    g.add_node("c", label="C", source_file="c.py", source_location="L30")
+    g.add_edge("a", "seed", relation="calls", confidence="EXTRACTED")                                  # no location
+    g.add_edge("b", "seed", relation="calls", confidence="EXTRACTED", source_location="L21")          # no edge file
+    g.add_edge("c", "seed", relation="calls", confidence="EXTRACTED", source_file="x.py", source_location="L31")
+    hits = affected_nodes(g, "seed", depth=1)
+    doc = affected_document(g, "g.json", "seed", hits, depth=1, relations=("calls",))
+    text = [ln for ln in format_affected(g, "seed", depth=1).splitlines() if ln.startswith("- ")]
+    by_source = {e["source"]: e for e in doc["edges"]}
+    assert [by_source[h.node_id]["source_file"] + (":" + by_source[h.node_id]["source_location"]
+            if by_source[h.node_id]["source_location"] else "") for h in hits] == [ln.rsplit(" ", 1)[1] for ln in text]
+    assert (by_source["a"]["source_file"], by_source["a"]["source_location"]) == ("a.py", "L10")
+    assert (by_source["b"]["source_file"], by_source["b"]["source_location"]) == ("b.py", "L21")
+    assert (by_source["c"]["source_file"], by_source["c"]["source_location"]) == ("x.py", "L31")

@@ -275,6 +275,18 @@ def affected_nodes(
     return hits
 
 
+def hit_site(graph: nx.Graph, hit: AffectedHit) -> "tuple[str, str]":
+    """(source_file, source_location) shown for a hit; text and structured output both use this.
+
+    The relation SITE in this node's file (call/import/reference line) when the edge carries a
+    location, else the honest fallback: the node's own file and def line.
+    """
+    data = graph.nodes[hit.node_id]
+    if hit.via_location:
+        return str(hit.via_file or data.get("source_file") or ""), hit.via_location
+    return str(data.get("source_file") or ""), str(data.get("source_location") or "")
+
+
 def format_affected(
     graph: nx.Graph,
     query: str,
@@ -299,13 +311,8 @@ def format_affected(
         return "\n".join(lines)
 
     for hit in hits:
-        data = graph.nodes[hit.node_id]
-        if hit.via_location:
-            # The relation SITE in this node's file (call/import/reference line),
-            # labeled by [via_relation] so it's never mistaken for a def line.
-            location = f"{hit.via_file or data.get('source_file') or '-'}:{hit.via_location}"
-        else:
-            location = _format_location(data)  # honest fallback: the node's own def line
+        source_file, source_location = hit_site(graph, hit)
+        location = f"{source_file or '-'}:{source_location}" if source_location else (source_file or "-")
         lines.append(
             f"- {_node_label(graph, hit.node_id)} [{hit.via_relation}] {location}"
         )

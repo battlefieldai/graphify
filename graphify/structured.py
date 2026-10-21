@@ -224,6 +224,7 @@ def affected_document(graph, graph_path, seed, hits, *, depth, relations) -> dic
     """Seed first, then every hit in the order `affected_nodes` returned; each hit's edge points
     from the affected node to the node it was reached from (the reverse-traversal direction).
     Intermediate member nodes an edge points at that are not hits are appended with role "via"."""
+    from graphify.affected import hit_site
     nodes = [node_record(graph, seed, role="seed")]
     present = {seed}
     edges = []
@@ -231,8 +232,9 @@ def affected_document(graph, graph_path, seed, hits, *, depth, relations) -> dic
         nodes.append(node_record(graph, hit.node_id, role="hit", depth=hit.depth))
         present.add(hit.node_id)
     for hit in hits:
+        site_file, site_location = hit_site(graph, hit)
         data = {"relation": hit.via_relation, "confidence": hit.via_confidence,
-                "source_file": hit.via_file, "source_location": hit.via_location}
+                "source_file": site_file, "source_location": site_location}
         target = hit.via_target or seed
         edges.append(edge_record(hit.node_id, target, data))
         if target not in present:
