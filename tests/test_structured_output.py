@@ -134,6 +134,7 @@ def test_structured_affected_hits_in_text_order(sandbox):
     printed = [ln[2:].split(" [", 1)[0] for ln in GOLDEN["affected_hub"]["stdout"].splitlines() if ln.startswith("- ")]
     hits = [n for n in doc["nodes"] if n["role"] == "hit"]
     assert [h["label"] for h in hits] == printed
+    assert [e["source"] for e in doc["edges"]] == [h["id"] for h in hits]  # one edge per hit, same order
     # reverse traversal: the affected node is the edge source, the node it reaches is the target
     assert all(e["target"] in ("mini_hub", "mini_alpha") for e in doc["edges"])
     assert [h["id"] for h in hits if h["label"] == "Widget"] == ["mini_widget_a", "mini_widget_b"]
@@ -194,3 +195,22 @@ def test_structured_read_writes_nothing_beside_the_graph(sandbox):
 def test_bad_format_value(sandbox):
     proc = run(sandbox, "--format", "yaml", "query", "--", "Hub")
     assert proc.returncode == 2
+
+
+def test_path_hop_against_the_stored_direction_keeps_the_stored_direction(sandbox):
+    """With --undirected the walk can cross an arc backwards; the edge still points the way it is stored."""
+    rc, doc, _ = structured(sandbox, "path", "--undirected", "--", "Derived", "Alpha")
+    assert [n["id"] for n in doc["nodes"]] == ["mini_derived", "mini_hub", "mini_alpha"]
+    assert [(e["source"], e["relation"], e["target"]) for e in doc["edges"]] == [
+        ("mini_hub", "references", "mini_derived"), ("mini_alpha", "calls", "mini_hub")]
+    text = run(sandbox, "path", "Derived", "Alpha", "--undirected", "--graph", REL_GRAPH).stdout
+    assert "Derived <--references [EXTRACTED]-- Hub <--calls [EXTRACTED]-- Alpha()" in text
+
+
+def test_separator_form_without_global_flags_is_text_identical(sandbox):
+    """`--` alone (no --graph/--format) still hoists the values: same bytes as the legacy positional form."""
+    legacy = GOLDEN["query_over_budget"]
+    proc = run(sandbox, "query", "--budget", "400", "--", "Hub")
+    assert (proc.stdout, proc.returncode) == (legacy["stdout"], legacy["returncode"])
+    proc = run(sandbox, "explain", "--", "--graph=/other")
+    assert "ID:        mini_flag" in proc.stdout
