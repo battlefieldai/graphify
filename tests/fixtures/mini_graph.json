@@ -1,0 +1,240 @@
+{
+ "directed": false,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "id": "mini_widget_a",
+   "label": "Widget",
+   "norm_label": "widget",
+   "source_file": "src/a/widget.py",
+   "source_location": "L10",
+   "community": 0,
+   "community_name": "Comm0",
+   "file_type": "code"
+  },
+  {
+   "id": "mini_widget_b",
+   "label": "Widget",
+   "norm_label": "widget",
+   "source_file": "src/b/widget.py",
+   "source_location": "L20",
+   "community": 1,
+   "community_name": "Comm1",
+   "file_type": "code"
+  },
+  {
+   "id": "mini_hub",
+   "label": "Hub",
+   "norm_label": "hub",
+   "source_file": "src/hub.py",
+   "source_location": "L5",
+   "community": 0,
+   "community_name": "Comm0",
+   "file_type": "code"
+  },
+  {
+   "id": "mini_alpha",
+   "label": "Alpha()",
+   "norm_label": "alpha()",
+   "source_file": "src/alpha.py",
+   "source_location": "L3",
+   "community": 0,
+   "community_name": "Comm0",
+   "file_type": "code"
+  },
+  {
+   "id": "mini_beta",
+   "label": "Beta()",
+   "norm_label": "beta()",
+   "source_file": "src/beta.py",
+   "source_location": "L7",
+   "community": 0,
+   "community_name": "Comm0",
+   "file_type": "code"
+  },
+  {
+   "id": "mini_gamma",
+   "label": "Gamma",
+   "norm_label": "gamma",
+   "source_file": "src/gamma.py",
+   "source_location": "L9",
+   "community": 1,
+   "community_name": "Comm1",
+   "file_type": "code"
+  },
+  {
+   "id": "mini_base",
+   "label": "BaseThing",
+   "norm_label": "basething",
+   "source_file": "src/base.py",
+   "source_location": "L2",
+   "community": 1,
+   "community_name": "Comm1",
+   "file_type": "code"
+  },
+  {
+   "id": "mini_derived",
+   "label": "Derived",
+   "norm_label": "derived",
+   "source_file": "src/derived.py",
+   "source_location": "L4",
+   "community": 1,
+   "community_name": "Comm1",
+   "file_type": "code"
+  },
+  {
+   "id": "mini_flag",
+   "label": "--graph=/other",
+   "norm_label": "--graph=/other",
+   "source_file": "src/flag.py",
+   "source_location": "L1",
+   "community": 1,
+   "community_name": "Comm1",
+   "file_type": "code"
+  },
+  {
+   "id": "mini_file_hub",
+   "label": "hub.py",
+   "norm_label": "hub.py",
+   "source_file": "src/hub.py",
+   "source_location": "L1",
+   "community": 0,
+   "community_name": "Comm0",
+   "file_type": "code"
+  },
+  {
+   "id": "mini_isolated",
+   "label": "Isolated",
+   "norm_label": "isolated",
+   "source_file": "src/iso.py",
+   "source_location": "L8",
+   "community": 2,
+   "community_name": "Comm2",
+   "file_type": "code"
+  },
+  {
+   "id": "mini_delta",
+   "label": "Delta()",
+   "norm_label": "delta()",
+   "source_file": "src/delta.py",
+   "source_location": "L6",
+   "community": 2,
+   "community_name": "Comm2",
+   "file_type": "code"
+  }
+ ],
+ "links": [
+  {
+   "source": "mini_derived",
+   "target": "mini_base",
+   "relation": "inherits",
+   "confidence": "EXTRACTED",
+   "context": "call",
+   "source_file": "src/derived.py",
+   "source_location": "L4",
+   "weight": 1.0
+  },
+  {
+   "source": "mini_alpha",
+   "target": "mini_hub",
+   "relation": "calls",
+   "confidence": "EXTRACTED",
+   "context": "call",
+   "source_file": "src/alpha.py",
+   "source_location": "L12",
+   "weight": 1.0
+  },
+  {
+   "source": "mini_beta",
+   "target": "mini_hub",
+   "relation": "calls",
+   "confidence": "EXTRACTED",
+   "context": "call",
+   "source_file": "src/beta.py",
+   "source_location": "L15",
+   "weight": 1.0
+  },
+  {
+   "source": "mini_gamma",
+   "target": "mini_hub",
+   "relation": "uses",
+   "confidence": "INFERRED",
+   "context": "call",
+   "source_file": "src/gamma.py",
+   "source_location": "L20",
+   "weight": 1.0
+  },
+  {
+   "source": "mini_widget_a",
+   "target": "mini_hub",
+   "relation": "uses",
+   "confidence": "INFERRED",
+   "context": "call",
+   "source_file": "src/a/widget.py",
+   "source_location": "L30",
+   "weight": 1.0
+  },
+  {
+   "source": "mini_widget_b",
+   "target": "mini_alpha",
+   "relation": "calls",
+   "confidence": "EXTRACTED",
+   "context": "call",
+   "source_file": "src/b/widget.py",
+   "source_location": "L40",
+   "weight": 1.0
+  },
+  {
+   "source": "mini_alpha",
+   "target": "mini_beta",
+   "relation": "calls",
+   "confidence": "EXTRACTED",
+   "context": "call",
+   "source_file": "src/alpha.py",
+   "source_location": "L13",
+   "weight": 1.0
+  },
+  {
+   "source": "mini_flag",
+   "target": "mini_hub",
+   "relation": "uses",
+   "confidence": "INFERRED",
+   "context": "call",
+   "source_file": "src/flag.py",
+   "source_location": "L5",
+   "weight": 1.0
+  },
+  {
+   "source": "mini_file_hub",
+   "target": "mini_hub",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "context": "call",
+   "source_file": "src/hub.py",
+   "source_location": "L5",
+   "weight": 1.0
+  },
+  {
+   "source": "mini_delta",
+   "target": "mini_widget_b",
+   "relation": "imports",
+   "confidence": "EXTRACTED",
+   "context": "call",
+   "source_file": "src/delta.py",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "mini_hub",
+   "target": "mini_derived",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "context": "call",
+   "source_file": "src/hub.py",
+   "source_location": "L9",
+   "weight": 1.0
+  }
+ ],
+ "hyperedges": []
+}

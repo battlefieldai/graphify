@@ -1,0 +1,118 @@
+{
+ "query_full": {
+  "argv": [
+   "query",
+   "Hub"
+  ],
+  "returncode": 0,
+  "stdout": "Graph: graphify-out/graph.json (12 nodes) | Traversal: BFS depth=2 | Start: ['Hub'] | 10 nodes found\n\nNODE Hub [src=src/hub.py loc=L5 community=Comm0]\nNODE Alpha() [src=src/alpha.py loc=L3 community=Comm0]\nNODE Beta() [src=src/beta.py loc=L7 community=Comm0]\nNODE Derived [src=src/derived.py loc=L4 community=Comm1]\nNODE hub.py [src=src/hub.py loc=L1 community=Comm0]\nNODE --graph=/other [src=src/flag.py loc=L1 community=Comm1]\nNODE Gamma [src=src/gamma.py loc=L9 community=Comm1]\nNODE Widget [src=src/a/widget.py loc=L10 community=Comm0]\nNODE Widget [src=src/b/widget.py loc=L20 community=Comm1]\nNODE BaseThing [src=src/base.py loc=L2 community=Comm1]\nEDGE Alpha() --calls [EXTRACTED context=call]--> Hub at=src/alpha.py:L12\nEDGE Beta() --calls [EXTRACTED context=call]--> Hub at=src/beta.py:L15\nEDGE Gamma --uses [INFERRED context=call]--> Hub at=src/gamma.py:L20\nEDGE Widget --uses [INFERRED context=call]--> Hub at=src/a/widget.py:L30\nEDGE --graph=/other --uses [INFERRED context=call]--> Hub at=src/flag.py:L5\nEDGE hub.py --contains [EXTRACTED context=call]--> Hub at=src/hub.py:L5\nEDGE Hub --references [EXTRACTED context=call]--> Derived at=src/hub.py:L9\nEDGE Derived --inherits [EXTRACTED context=call]--> BaseThing at=src/derived.py:L4\nEDGE Widget --calls [EXTRACTED context=call]--> Alpha() at=src/b/widget.py:L40\nEDGE Alpha() --calls [EXTRACTED context=call]--> Beta() at=src/alpha.py:L13\n"
+ },
+ "query_over_budget": {
+  "argv": [
+   "query",
+   "Hub",
+   "--budget",
+   "400"
+  ],
+  "returncode": 0,
+  "stdout": "Graph: graphify-out/graph.json (12 nodes) | Traversal: BFS depth=2 | Start: ['Hub'] | 10 nodes found\n\n[i] Complete answer over budget: all 10 nodes and 10 edges shown (~432 tokens vs the requested ~400-token budget). Edges are never dropped once every node fits, so this is already the full answer — raising --budget further will not shrink it. Narrow with context_filter=['call'] or use get_node for a specific symbol to reduce size instead.\n\nNODE Hub [src=src/hub.py loc=L5 community=Comm0]\nNODE Alpha() [src=src/alpha.py loc=L3 community=Comm0]\nNODE Beta() [src=src/beta.py loc=L7 community=Comm0]\nNODE Derived [src=src/derived.py loc=L4 community=Comm1]\nNODE hub.py [src=src/hub.py loc=L1 community=Comm0]\nNODE --graph=/other [src=src/flag.py loc=L1 community=Comm1]\nNODE Gamma [src=src/gamma.py loc=L9 community=Comm1]\nNODE Widget [src=src/a/widget.py loc=L10 community=Comm0]\nNODE Widget [src=src/b/widget.py loc=L20 community=Comm1]\nNODE BaseThing [src=src/base.py loc=L2 community=Comm1]\nEDGE Alpha() --calls [EXTRACTED context=call]--> Hub at=src/alpha.py:L12\nEDGE Beta() --calls [EXTRACTED context=call]--> Hub at=src/beta.py:L15\nEDGE Gamma --uses [INFERRED context=call]--> Hub at=src/gamma.py:L20\nEDGE Widget --uses [INFERRED context=call]--> Hub at=src/a/widget.py:L30\nEDGE --graph=/other --uses [INFERRED context=call]--> Hub at=src/flag.py:L5\nEDGE hub.py --contains [EXTRACTED context=call]--> Hub at=src/hub.py:L5\nEDGE Hub --references [EXTRACTED context=call]--> Derived at=src/hub.py:L9\nEDGE Widget --calls [EXTRACTED context=call]--> Alpha() at=src/b/widget.py:L40\nEDGE Derived --inherits [EXTRACTED context=call]--> BaseThing at=src/derived.py:L4\nEDGE Alpha() --calls [EXTRACTED context=call]--> Beta() at=src/alpha.py:L13\n"
+ },
+ "query_truncated": {
+  "argv": [
+   "query",
+   "Hub",
+   "--budget",
+   "100"
+  ],
+  "returncode": 0,
+  "stdout": "Graph: graphify-out/graph.json (12 nodes) | Traversal: BFS depth=2 | Start: ['Hub'] | 10 nodes found\n\n[!] TRUNCATED: showing 5 of 10 nodes (~100-token budget). The answer may be among the 5 cut nodes — raise the token budget (CLI: --budget) or narrow the query (e.g. context_filter=['call'], or get_node for a specific symbol).\n\nNODE Hub [src=src/hub.py loc=L5 community=Comm0]\nNODE Alpha() [src=src/alpha.py loc=L3 community=Comm0]\nNODE Beta() [src=src/beta.py loc=L7 community=Comm0]\nNODE Derived [src=src/derived.py loc=L4 community=Comm1]\nNODE hub.py [src=src/hub.py loc=L1 community=Comm0]\n... (truncated — 5 more nodes cut by ~100-token budget. Narrow with context_filter=['call'] or use get_node for a specific symbol)\n"
+ },
+ "query_no_match": {
+  "argv": [
+   "query",
+   "zzzqq"
+  ],
+  "returncode": 0,
+  "stdout": "No matching nodes found.\n"
+ },
+ "explain_hub": {
+  "argv": [
+   "explain",
+   "Hub"
+  ],
+  "returncode": 0,
+  "stdout": "Node: Hub\n  ID:        mini_hub\n  Source:    src/hub.py L5\n  Type:      code\n  Community: Comm0\n  Degree:    7\n\nConnections (7):\n  <-- Alpha() [calls] [EXTRACTED] src/alpha.py:L12\n  --> Derived [references] [EXTRACTED] src/hub.py:L9\n  <-- Beta() [calls] [EXTRACTED] src/beta.py:L15\n  <-- Gamma [uses] [INFERRED] src/gamma.py:L20\n  <-- Widget [uses] [INFERRED] src/a/widget.py:L30\n  <-- --graph=/other [uses] [INFERRED] src/flag.py:L5\n  <-- hub.py [contains] [EXTRACTED] src/hub.py:L5\n"
+ },
+ "explain_ambiguous": {
+  "argv": [
+   "explain",
+   "Widget"
+  ],
+  "returncode": 1,
+  "stdout": "Ambiguous: 'Widget' matches 2 nodes in different files.\n  src/a/widget.py\n    id: mini_widget_a\n  src/b/widget.py\n    id: mini_widget_b\nRetry with the repo-relative path or the full node id.\n"
+ },
+ "explain_no_match": {
+  "argv": [
+   "explain",
+   "nothing_here_zz"
+  ],
+  "returncode": 0,
+  "stdout": "No node matching 'nothing_here_zz' found.\n"
+ },
+ "path_found": {
+  "argv": [
+   "path",
+   "Alpha",
+   "Derived"
+  ],
+  "returncode": 0,
+  "stdout": "Shortest path (2 hops):\n  Alpha() --calls [EXTRACTED]--> Hub --references [EXTRACTED]--> Derived\n"
+ },
+ "path_no_directed_path": {
+  "argv": [
+   "path",
+   "Derived",
+   "Alpha"
+  ],
+  "returncode": 0,
+  "stdout": "No directed path found between 'Derived' and 'Alpha'. Re-run with --undirected to search ignoring edge direction.\n"
+ },
+ "affected_hub": {
+  "argv": [
+   "affected",
+   "Hub"
+  ],
+  "returncode": 0,
+  "stdout": "Affected nodes for Hub\nRelations: calls, indirect_call, references, imports, imports_from, dynamic_import, re_exports, inherits, extends, implements, uses, mixes_in, embeds, requires\nDepth: 2\n- Alpha() [calls] src/alpha.py:L12\n- Beta() [calls] src/beta.py:L15\n- Gamma [uses] src/gamma.py:L20\n- Widget [uses] src/a/widget.py:L30\n- --graph=/other [uses] src/flag.py:L5\n- Widget [calls] src/b/widget.py:L40\n"
+ },
+ "affected_no_match": {
+  "argv": [
+   "affected",
+   "zzqq"
+  ],
+  "returncode": 0,
+  "stdout": "No unique node match for zzqq\n"
+ },
+ "affected_ambiguous": {
+  "argv": [
+   "affected",
+   "Widget"
+  ],
+  "returncode": 0,
+  "stdout": "No unique node match for Widget\n"
+ },
+ "god_nodes_dash": {
+  "argv": [
+   "god-nodes"
+  ],
+  "returncode": 0,
+  "stdout": "God nodes (most connected):\n  1. Hub - 7 edges\n  2. Alpha() - 3 edges\n  3. Widget - 2 edges\n  4. Beta() - 2 edges\n  5. Derived - 2 edges\n  6. Widget - 1 edges\n  7. Gamma - 1 edges\n  8. BaseThing - 1 edges\n  9. --graph=/other - 1 edges\n  10. Isolated - 0 edges\n"
+ },
+ "god_nodes_underscore": {
+  "argv": [
+   "god_nodes"
+  ],
+  "returncode": 0,
+  "stdout": "God nodes (most connected):\n  1. Hub - 7 edges\n  2. Alpha() - 3 edges\n  3. Widget - 2 edges\n  4. Beta() - 2 edges\n  5. Derived - 2 edges\n  6. Widget - 1 edges\n  7. Gamma - 1 edges\n  8. BaseThing - 1 edges\n  9. --graph=/other - 1 edges\n  10. Isolated - 0 edges\n"
+ }
+}
