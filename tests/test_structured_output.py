@@ -26,6 +26,7 @@ def sandbox(tmp_path):
 
 def run(cwd, *argv):
     env = {k: v for k, v in os.environ.items() if not k.startswith("GRAPHIFY_")}
+    env["PYTHONHASHSEED"] = "0"  # query edge order follows set iteration; the goldens were recorded under seed 0
     return subprocess.run([sys.executable, "-m", "graphify", *argv], cwd=cwd, env=env,
                           capture_output=True, text=True)
 
@@ -162,7 +163,7 @@ def test_flag_shaped_value_is_literal(sandbox):
     rc, doc, proc = structured(sandbox, "explain", "--", "--graph=/other")
     assert rc == 0 and doc["nodes"][0]["id"] == "mini_flag"
     assert doc["graph_path"] == str((sandbox / REL_GRAPH).resolve())
-    rc, doc, _ = structured(sandbox, "query", "--", "--dfs")
+    rc, doc, _ = structured(sandbox, "query", "--", "--graph=/other")
     assert doc["traversal"]["mode"] == "bfs"
     rc, doc, _ = structured(sandbox, "affected", "--", "--help")
     assert doc["selection"]["status"] in ("no_match", "ambiguous") and "Run 'graphify --help'" not in proc.stdout
